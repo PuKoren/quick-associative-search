@@ -29,6 +29,7 @@
 // ***************************************************************************
 
 #define OPTIMAL
+#define EXPERIMENTAL
 
 // --- includes --------------------------------------------------------------
 #include <cstdlib>
@@ -138,28 +139,22 @@ struct EntreeAnnuaireVec
 	//
 	// insertion sort tenant compte de l'utilisation de cette classe lors de l'initialisation
 	//
-    /*
-    pour i de 1 à n-1
-          x ← T[i]
-          j ← i
-          tant que j > 0 et T[j - 1] > x
-              T[j] ← T[j - 1]
-              j ← j - 1
-          fin tant que
-          T[j] ← x
-     fin pour
-    */
 	static void sort(std::vector<EntreeAnnuaireVec>::iterator begin, std::vector<EntreeAnnuaireVec>::iterator end)
 	{
+        //on set la valeur de end sur end-1 pour etre dans les bounds du vecteur
         if(begin == --end) return;
         
+        //on itere le vecteur à partir de début+1 jusqu'à end
         for (std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i)
         {
+            //pour chaque valeur, on itere depuis cette valeur jusqu'au début du vecteur et on compare les hash
             for(std::vector<EntreeAnnuaireVec>::iterator j = i; j > begin && j->hash < (j - 1)->hash; --j )
             {
+                //si la valeur précédente est inférieure, on swap avec la valeur courante
                 std::swap(*(j - 1), *j);
             }
         }
+        //autres essais
         /*
         for (std::vector<EntreeAnnuaireVec>::iterator it = begin; it != end; ++it)
         {
@@ -191,9 +186,38 @@ struct EntreeAnnuaireVec
 
     /*
     * Sort sur l'insert plutôt qu'un sort post insert, pour effectuer un tri uniquement pour l'élément qu'on souhaite insérer
+    * cela enlève de la complexité
     */
     static void push(std::vector<EntreeAnnuaireVec> &annuaire, const EntreeAnnuaireVec &entree){
-        /*
+        /* DICHOTOMIE
+        */
+        bool found = false;
+        int start = 0;
+        int end = annuaire.size();
+        int middle = 0;
+        int lookfor = entree.hash;
+        while(!found && ((end - start) > 1)){
+            middle = (start + end)/2;
+            found = (annuaire[middle].hash == lookfor);
+            if(annuaire[middle].hash > lookfor) end = middle;
+            else start = middle;
+        }
+
+        if(found){
+            annuaire.insert(annuaire.begin()+middle, entree);
+        }else{
+            if(annuaire.size() > 0 && annuaire[0].hash > entree.hash)
+                annuaire.insert(annuaire.begin(), entree);
+            else
+                annuaire.push_back(entree);
+        }
+
+        /* AVEC ITERATORS
+        auto it = annuaire.end()-1;
+        for(it; it != annuaire.begin() && it->hash < (it-1)->hash; --it);
+        if(it != annuaire.begin()) annuaire.insert(it, entree);
+        */
+        /* A LA MAIN
         unsigned int i = 0;
         while(annuaire.size() > i && annuaire[i] < (EntreeAnnuaireVec&)entree){
             i++;
@@ -297,16 +321,21 @@ int main(int argc, char* argv[])
 		entree_vec.nom = nom;
 		entree_vec.numero = entier;
         entree_vec.hash = hash;
-        annuaire_vec.push_back(entree_vec);
 
 		// A OPTIMISER -->
 		//
 		// par un insertion sort tenant compte de l'ordre d'insertion
 #ifndef OPTIMAL
+        annuaire_vec.push_back(entree_vec);
 		std::sort(annuaire_vec.begin(), annuaire_vec.end());
 #else
+#ifdef EXPERIMENTAL
+        EntreeAnnuaireVec::push(annuaire_vec, entree_vec);
+#else
+        annuaire_vec.push_back(entree_vec);
         EntreeAnnuaireVec::sort(annuaire_vec.begin(), annuaire_vec.end());
         //EntreeAnnuaireVec::push(annuaire_vec, entree_vec);
+#endif
 #endif
 		// <-- A OPTIMISER
 
