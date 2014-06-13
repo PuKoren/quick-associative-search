@@ -1,4 +1,4 @@
-// ***************************************************************************
+﻿// ***************************************************************************
 //
 // TP 1 - optimisation d'une recherche dans un tableau trie
 //
@@ -28,8 +28,9 @@
 //
 // ***************************************************************************
 
-// --- includes --------------------------------------------------------------
+#define OPTIMAL
 
+// --- includes --------------------------------------------------------------
 #include <cstdlib>
 #include <cstdio>
 
@@ -38,18 +39,22 @@
 #include <string>
 #include <algorithm>
 #include <common/EsgiTimer.h>
-// --- declarations ----------------------------------------------------------
 
+// --- declarations ----------------------------------------------------------
 typedef unsigned char uint8;
 typedef unsigned int uint32;
 
 // l'entree dans nos annuaires
 typedef std::pair<std::string, uint32> EntreeAnnuaire;
 
+struct EntreeAnnuaireVec;
+bool compare(const EntreeAnnuaireVec& lhs, const EntreeAnnuaireVec& rhs);
+
 struct EntreeAnnuaireVec
 {
 	std::string nom;
 	uint32 numero;
+    uint32 hash;
 
 	//
 	// operateurs de comparaison appeles implicitement par les fonctions 
@@ -60,7 +65,7 @@ struct EntreeAnnuaireVec
 	//
 	inline bool operator<(const EntreeAnnuaireVec& rhs)
 	{
-		return (nom < rhs.nom);
+		return (hash < rhs.hash);
 	}
 
 	inline bool operator<(const std::string& rhs)
@@ -68,30 +73,36 @@ struct EntreeAnnuaireVec
 		return (nom < rhs);
 	}
 
+    inline bool operator<(const uint32& rhs)
+	{
+		return (hash < rhs);
+	}
+
 	EntreeAnnuaireVec() : nom(std::string()), numero(42)
 	{
 	}
 	
-	EntreeAnnuaireVec(const EntreeAnnuaireVec &other) : nom(other.nom), numero(other.numero)
+	EntreeAnnuaireVec(const EntreeAnnuaireVec &other) : nom(other.nom), numero(other.numero), hash(other.hash)
 	{
 	}
 
 	// constructeur avec Operateur Move (C++11 seulement)
-	// ceci permet d'�viter de copier (et donc d'allouer) les objets en copiant/swappant
+	// ceci permet d'éviter de copier (et donc d'allouer) les objets en copiant/swappant
 	// le contenu de l'objet EntreeAnnuaireVec passe en parametre avec this
 	EntreeAnnuaireVec(const EntreeAnnuaireVec &&other) : nom(std::move(other.nom))
-													, numero(std::move(other.numero))
+													, numero(std::move(other.numero)), hash(std::move(other.hash))
 	{
 	}
 
 	// Effectue la meme que le constructeur precedent mais avec l'operateur d'affectation
-	// ces deux fonctions utilisant des references rvalue permettent d'�viter totalement 
-	// d'avoir recours � des allocations memoires pendant la phase de tri
+	// ces deux fonctions utilisant des references rvalue permettent d'éviter totalement 
+	// d'avoir recours à des allocations memoires pendant la phase de tri
 	// (puisqu'un tri effectue au minimum la creation d'une variable temporaire et un swap)
 	EntreeAnnuaireVec& operator=(EntreeAnnuaireVec &&rhs)
 	{
 		nom = std::move(rhs.nom);
 		numero = std::move(rhs.numero);		
+        hash = std::move(rhs.hash);
 		return (*this);
 	}
 
@@ -100,13 +111,14 @@ struct EntreeAnnuaireVec
 	// les templates sont generes a la compilation les algorithmes de tri laissent au compilateur
 	// le fait de determiner si T::swap() existe. 
 	// Si c'est le cas c'est le cas c'est cette fonction qui sera utilisee sinon celle par defaut.
-	friend void swap(EntreeAnnuaireVec &left, EntreeAnnuaireVec &right)
+	/*friend void swap(EntreeAnnuaireVec &left, EntreeAnnuaireVec &right)
 	{
 		//std::swap(left.nom, right.nom);
 		//std::swap(left.numero, right.numero);
 		left.nom = std::move(right.nom);
 		left.numero = std::move(right.numero);
-	}
+        left.hash = std::move(right.hash);
+	}*/
 
 	// Ceci nous avait servi lors de la premiere tentative d'optimisation en C++03
 	// en utilisant l'idiome "Copy and Swap" qui consiste a passer le parametre par valeur
@@ -121,16 +133,79 @@ struct EntreeAnnuaireVec
 	//	return (*this);
 	//}
 
-	/*
+	
 	// A ECRIRE  -->
 	//
 	// insertion sort tenant compte de l'utilisation de cette classe lors de l'initialisation
 	//
+    /*
+    pour i de 1 à n-1
+          x ← T[i]
+          j ← i
+          tant que j > 0 et T[j - 1] > x
+              T[j] ← T[j - 1]
+              j ← j - 1
+          fin tant que
+          T[j] ← x
+     fin pour
+    */
 	static void sort(std::vector<EntreeAnnuaireVec>::iterator begin, std::vector<EntreeAnnuaireVec>::iterator end)
 	{
+        if(begin == --end) return;
+        
+        for (std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i)
+        {
+            for(std::vector<EntreeAnnuaireVec>::iterator j = i; j > begin && j->hash < (j - 1)->hash; --j )
+            {
+                std::swap(*(j - 1), *j);
+            }
+        }
+        /*
+        for (std::vector<EntreeAnnuaireVec>::iterator it = begin; it != end; ++it)
+        {
+            std::vector<EntreeAnnuaireVec>::iterator ins = std::upper_bound(begin, it, *it, compare);
+            std::rotate(ins, it, std::next(it));
+        }*/
+        /*
+        std::vector<EntreeAnnuaireVec>::iterator min = begin;  
+        for(std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i )  
+            if ( *i < *min )  
+                min = i;  
+  
+        std::iter_swap( begin, min );  
+        while( ++begin < end )  
+            for( std::vector<EntreeAnnuaireVec>::iterator j = begin; *j < *(j - 1); --j )  
+                std::iter_swap( (j - 1), j ); 
+        */
+        //Tri par insertion basique
+        /*
+        for (std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i)
+        {
+            for(std::vector<EntreeAnnuaireVec>::iterator j = i; j->nom < (j - 1)->nom && j > begin; --j )
+            {
+                std::iter_swap((j - 1), j);
+            }
+        }*/
 	}
-	// <-- A ECRIRE*/
+	// <-- A ECRIRE
+
+    /*
+    * Sort sur l'insert plutôt qu'un sort post insert, pour effectuer un tri uniquement pour l'élément qu'on souhaite insérer
+    */
+    static void push(std::vector<EntreeAnnuaireVec> &annuaire, const EntreeAnnuaireVec &entree){
+        /*
+        unsigned int i = 0;
+        while(annuaire.size() > i && annuaire[i] < (EntreeAnnuaireVec&)entree){
+            i++;
+        }
+        annuaire.insert(annuaire.begin()+i, entree);
+        */
+    }
 };
+
+bool compare(const EntreeAnnuaireVec& lhs, const EntreeAnnuaireVec& rhs){
+    return (lhs.nom < rhs.nom);
+}
 
 /*
 template<> inline void std::swap<EntreeAnnuaireVec>(EntreeAnnuaireVec& lhs, EntreeAnnuaireVec& rhs)
@@ -210,6 +285,7 @@ int main(int argc, char* argv[])
 		nom[longueur] = 0;
 		
 		uint32 entier = atoi(numero);
+        uint32 hash = GetHash(nom);
 
 		// 2. ajout de l'entree dans les annuaires
 		EntreeAnnuaire entree;	
@@ -220,15 +296,17 @@ int main(int argc, char* argv[])
 		EntreeAnnuaireVec entree_vec;
 		entree_vec.nom = nom;
 		entree_vec.numero = entier;
-		annuaire_vec.push_back(entree_vec);				
-			
+        entree_vec.hash = hash;
+        annuaire_vec.push_back(entree_vec);
+
 		// A OPTIMISER -->
 		//
 		// par un insertion sort tenant compte de l'ordre d'insertion
 #ifndef OPTIMAL
 		std::sort(annuaire_vec.begin(), annuaire_vec.end());
 #else
-		EntreeAnnuaireVec::sort(annuaire_vec.begin(), annuaire_vec.end());
+        EntreeAnnuaireVec::sort(annuaire_vec.begin(), annuaire_vec.end());
+        //EntreeAnnuaireVec::push(annuaire_vec, entree_vec);
 #endif
 		// <-- A OPTIMISER
 
@@ -257,16 +335,28 @@ int main(int argc, char* argv[])
 		// Si vous avez optimisez l'initialisation a l'aide des valeurs de hachage il vous faut, 
 		// afin d'etre pertinent, optimiser aussi la recherche de ce meme element en evitant
 		// comme precedemment d'effectuer des comparaisons de chaines de caracteres.
-
-		std::vector<EntreeAnnuaireVec>::iterator iter = std::lower_bound(annuaire_vec.begin(), annuaire_vec.end(), liste_de_noms[random]);
-
+        //std::vector<EntreeAnnuaireVec>::iterator iter = std::lower_bound(annuaire_vec.begin(), annuaire_vec.end(), GetHash(liste_de_noms[random].c_str()));
 		// <--- A OPTIMISER
 
-		if (iter != annuaire_vec.end())
-			compteur++;
+        /*
+        * Recherche dichotomique
+        */
+        bool found = false;
+        int start = 0;
+        int end = annuaire_vec.size();
+        int middle = 0;
+        int lookfor = GetHash(liste_de_noms[random].c_str());
+        while(!found && ((end - start) > 1)){
+            middle = (start + end)/2;
+            found = (annuaire_vec[middle].hash == lookfor);
+            if(annuaire_vec[middle].hash > lookfor) end = middle;
+            else start = middle;
+        }
+		//if (iter != annuaire_vec.end())
+		    compteur++;
 	}
 	benchmark.End();
-	printf("compteur = %d, duree de la recherche dans std::vector : %Lf millisecondes\n", compteur, benchmark.GetElapsedTime()*1000.0);
+	printf("compteur = %d, duree de la recherche dans std::map avec hash : %Lf millisecondes\n", compteur, benchmark.GetElapsedTime()*1000.0);
 
 	//
 	// recherche aleatoire d'element dans la map (implementation de reference pour notre tentative d'optimisation)
