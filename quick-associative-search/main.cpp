@@ -185,17 +185,7 @@ struct EntreeAnnuaireVec
             else start = middle;
         }
 
-        //si on a trouvé la bonne position
-        if(found){
-            //on insert l'element à cette position
-            annuaire.insert(annuaire.begin()+middle, entree);
-        }else{
-            //sinon on regarde si on doit le placer au début ou à la fin
-            if(annuaire.size() > 0 && annuaire[0].hash > entree.hash) //début si < au premier
-                annuaire.insert(annuaire.begin(), entree);
-            else //fin sinon
-                annuaire.push_back(entree);
-        }
+        annuaire.insert(annuaire.begin()+middle, entree);
 
         /* AVEC ITERATORS
         auto it = annuaire.end()-1;
