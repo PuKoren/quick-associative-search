@@ -28,8 +28,8 @@
 //
 // ***************************************************************************
 
-#define OPTIMAL
-#define EXPERIMENTAL
+#define OPTIMAL //pour utiliser les optims de l'énnoncé
+#define EXPERIMENTAL //utilisation de l'insertion par tri dichotomique spéciale, marche mieux mais bonus par rapport à l'énnoncé
 
 // --- includes --------------------------------------------------------------
 #include <cstdlib>
@@ -47,10 +47,6 @@ typedef unsigned int uint32;
 
 // l'entree dans nos annuaires
 typedef std::pair<std::string, uint32> EntreeAnnuaire;
-
-struct EntreeAnnuaireVec;
-bool compare(const EntreeAnnuaireVec& lhs, const EntreeAnnuaireVec& rhs);
-
 struct EntreeAnnuaireVec
 {
 	std::string nom;
@@ -67,6 +63,11 @@ struct EntreeAnnuaireVec
 	inline bool operator<(const EntreeAnnuaireVec& rhs)
 	{
 		return (hash < rhs.hash);
+	}
+
+    friend bool operator<(const EntreeAnnuaireVec& lhs, const EntreeAnnuaireVec& rhs)
+	{
+		return (lhs.hash < rhs.hash);
 	}
 
 	inline bool operator<(const std::string& rhs)
@@ -141,44 +142,25 @@ struct EntreeAnnuaireVec
 	//
 	static void sort(std::vector<EntreeAnnuaireVec>::iterator begin, std::vector<EntreeAnnuaireVec>::iterator end)
 	{
+        //en utilisant upper_bound et rotate: très lent...
+        for (auto i = begin; i != end; ++i) {
+            std::rotate(std::upper_bound(begin, i, *i), i, i+1);
+        }
+
+        /*
+        //en utilisant les iterateurs et swap: très lent...
         //on set la valeur de end sur end-1 pour etre dans les bounds du vecteur
         if(begin == --end) return;
         
+        std::vector<EntreeAnnuaireVec>::iterator pos = begin;
         //on itere le vecteur à partir de début+1 jusqu'à end
         for (std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i)
         {
             //pour chaque valeur, on itere depuis cette valeur jusqu'au début du vecteur et on compare les hash
             for(std::vector<EntreeAnnuaireVec>::iterator j = i; j > begin && j->hash < (j - 1)->hash; --j )
             {
-                //si la valeur précédente est inférieure, on swap avec la valeur courante
+                //si la valeur précédente est inférieure, on récupère l'itérateur pour préparer le swap
                 std::swap(*(j - 1), *j);
-            }
-        }
-        //autres essais
-        /*
-        for (std::vector<EntreeAnnuaireVec>::iterator it = begin; it != end; ++it)
-        {
-            std::vector<EntreeAnnuaireVec>::iterator ins = std::upper_bound(begin, it, *it, compare);
-            std::rotate(ins, it, std::next(it));
-        }*/
-        /*
-        std::vector<EntreeAnnuaireVec>::iterator min = begin;  
-        for(std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i )  
-            if ( *i < *min )  
-                min = i;  
-  
-        std::iter_swap( begin, min );  
-        while( ++begin < end )  
-            for( std::vector<EntreeAnnuaireVec>::iterator j = begin; *j < *(j - 1); --j )  
-                std::iter_swap( (j - 1), j ); 
-        */
-        //Tri par insertion basique
-        /*
-        for (std::vector<EntreeAnnuaireVec>::iterator i = begin + 1; i < end; ++i)
-        {
-            for(std::vector<EntreeAnnuaireVec>::iterator j = i; j->nom < (j - 1)->nom && j > begin; --j )
-            {
-                std::iter_swap((j - 1), j);
             }
         }*/
 	}
@@ -189,13 +171,13 @@ struct EntreeAnnuaireVec
     * cela enlève de la complexité
     */
     static void push(std::vector<EntreeAnnuaireVec> &annuaire, const EntreeAnnuaireVec &entree){
-        /* DICHOTOMIE
-        */
+        /* DICHOTOMIE basique pour trouver la bonne position pour l'insert*/
         bool found = false;
         int start = 0;
-        int end = annuaire.size();
-        int middle = 0;
-        int lookfor = entree.hash;
+        unsigned int end = annuaire.size();
+        unsigned int middle = 0;
+        uint32 lookfor = entree.hash;
+        //tant qu'on a pas trouvé on sépare la collection en 2 et on regarde de quel côté on doit aller...
         while(!found && ((end - start) > 1)){
             middle = (start + end)/2;
             found = (annuaire[middle].hash == lookfor);
@@ -203,12 +185,15 @@ struct EntreeAnnuaireVec
             else start = middle;
         }
 
+        //si on a trouvé la bonne position
         if(found){
+            //on insert l'element à cette position
             annuaire.insert(annuaire.begin()+middle, entree);
         }else{
-            if(annuaire.size() > 0 && annuaire[0].hash > entree.hash)
+            //sinon on regarde si on doit le placer au début ou à la fin
+            if(annuaire.size() > 0 && annuaire[0].hash > entree.hash) //début si < au premier
                 annuaire.insert(annuaire.begin(), entree);
-            else
+            else //fin sinon
                 annuaire.push_back(entree);
         }
 
@@ -226,10 +211,6 @@ struct EntreeAnnuaireVec
         */
     }
 };
-
-bool compare(const EntreeAnnuaireVec& lhs, const EntreeAnnuaireVec& rhs){
-    return (lhs.nom < rhs.nom);
-}
 
 /*
 template<> inline void std::swap<EntreeAnnuaireVec>(EntreeAnnuaireVec& lhs, EntreeAnnuaireVec& rhs)
@@ -326,15 +307,14 @@ int main(int argc, char* argv[])
 		//
 		// par un insertion sort tenant compte de l'ordre d'insertion
 #ifndef OPTIMAL
-        annuaire_vec.push_back(entree_vec);
-		std::sort(annuaire_vec.begin(), annuaire_vec.end());
+        annuaire_vec.push_back(entree_vec); //on insert
+		std::sort(annuaire_vec.begin(), annuaire_vec.end()); //on sort
 #else
 #ifdef EXPERIMENTAL
-        EntreeAnnuaireVec::push(annuaire_vec, entree_vec);
+        EntreeAnnuaireVec::push(annuaire_vec, entree_vec); //on insert en trouvant la bonne position
 #else
-        annuaire_vec.push_back(entree_vec);
-        EntreeAnnuaireVec::sort(annuaire_vec.begin(), annuaire_vec.end());
-        //EntreeAnnuaireVec::push(annuaire_vec, entree_vec);
+        annuaire_vec.push_back(entree_vec); //on insert
+        EntreeAnnuaireVec::sort(annuaire_vec.begin(), annuaire_vec.end()); //on sort
 #endif
 #endif
 		// <-- A OPTIMISER
@@ -364,7 +344,9 @@ int main(int argc, char* argv[])
 		// Si vous avez optimisez l'initialisation a l'aide des valeurs de hachage il vous faut, 
 		// afin d'etre pertinent, optimiser aussi la recherche de ce meme element en evitant
 		// comme precedemment d'effectuer des comparaisons de chaines de caracteres.
-        //std::vector<EntreeAnnuaireVec>::iterator iter = std::lower_bound(annuaire_vec.begin(), annuaire_vec.end(), GetHash(liste_de_noms[random].c_str()));
+        #ifndef OPTIMAL //fonctionnement de base
+        std::vector<EntreeAnnuaireVec>::iterator iter = std::lower_bound(annuaire_vec.begin(), annuaire_vec.end(), GetHash(liste_de_noms[random].c_str()));
+        #else
 		// <--- A OPTIMISER
 
         /*
@@ -372,16 +354,21 @@ int main(int argc, char* argv[])
         */
         bool found = false;
         int start = 0;
-        int end = annuaire_vec.size();
-        int middle = 0;
-        int lookfor = GetHash(liste_de_noms[random].c_str());
+        unsigned int end = annuaire_vec.size();
+        unsigned int middle = 0;
+        uint32 lookfor = GetHash(liste_de_noms[random].c_str());
+        //tant qu'on a pas trouvé le hash on coupe en deux la collection et on regarde de quel côté on doit aller...
         while(!found && ((end - start) > 1)){
             middle = (start + end)/2;
             found = (annuaire_vec[middle].hash == lookfor);
             if(annuaire_vec[middle].hash > lookfor) end = middle;
             else start = middle;
         }
-		//if (iter != annuaire_vec.end())
+        //a ce stade, middle contient l'indice de l'élément trouvé, si found est à vrai
+        #endif
+        #ifndef OPTIMAL
+		if (iter != annuaire_vec.end())
+        #endif
 		    compteur++;
 	}
 	benchmark.End();
